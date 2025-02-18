@@ -1,0 +1,58 @@
+import requests
+from bs4 import BeautifulSoup
+import smtplib
+import time
+import schedule
+
+# Email configuration
+EMAIL_ADDRESS = "your_email@example.com"
+EMAIL_PASSWORD = "your_password"
+RECIPIENT_EMAIL = "recipient@example.com"
+
+# URL to monitor
+URL = "https://example.com/product-page"
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
+
+# Keep track of existing items
+existing_items = set()
+
+# Function to check for new items
+def check_new_items():
+    global existing_items
+    response = requests.get(URL, headers=HEADERS)
+    soup = BeautifulSoup(response.text, "html.parser")
+    
+    # Modify this selector based on the website structure
+    items = soup.find_all("div", class_="product-item")
+    
+    current_items = {item.text.strip(): item.find("img")["src"] for item in items if item.find("img")}
+    new_items = {name: image for name, image in current_items.items() if name not in existing_items}
+    
+    if new_items:
+        send_email(new_items)
+        existing_items = set(current_items.keys())  # Update the existing items list
+
+def send_email(new_items):
+    subject = "New Items Added!"
+    body = "The following new items have been added:\n\n"
+    
+    for name, image_url in new_items.items():
+        body += f"{name}\nImage: {image_url}\n\n"
+    
+    body += f"Check it out here: {URL}"
+    
+    message = f"Subject: {subject}\n\n{body}"
+    
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.starttls()
+        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_ADDRESS, RECIPIENT_EMAIL, message)
+    
+    print("Email sent for new items!")
+
+# Schedule the script to run every 10 minutes
+schedule.every(10).minutes.do(check_new_items)
+
+while True:
+    schedule.run_pending()
+    time.sleep(60)
